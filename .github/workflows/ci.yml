@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  issues: write
 
 jobs:
   quality:
@@ -15,14 +17,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - name: Open ticket on failure
+        if: >-
+          failure() &&
+          (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/ci-failure-ticket.sh "quality" "${{ github.run_id }}"
 
   changeset-check:
     runs-on: ubuntu-latest
@@ -32,8 +39,6 @@ jobs:
         with:
           fetch-depth: 0
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -48,3 +53,10 @@ jobs:
               echo "::warning::Source files changed in publishable packages but no changeset found. Run 'pnpm changeset' before merging."
             fi
           fi
+      - name: Open ticket on failure
+        if: >-
+          failure() &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/ci-failure-ticket.sh "changeset-check" "${{ github.run_id }}"

@@ -17,6 +17,8 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      actions: read
+      issues: write
 
     steps:
       - uses: actions/checkout@v4
@@ -26,8 +28,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
@@ -77,3 +77,8 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: "true"
         run: pnpm changeset publish
+      - name: Open ticket on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/ci-failure-ticket.sh "publish-packages" "${{ github.run_id }}"
