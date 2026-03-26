@@ -1,13 +1,25 @@
 # remark-for-ai
 
-Docs governance for AI-heavy repos, built on the remark ecosystem instead of
-hand-rolled markdown parsing.
+Docs governance for coding-agent workflows, built on the remark ecosystem
+instead of hand-rolled markdown parsing.
 
-This repo exists for one reason: docs rot faster when agents are writing them.
+This repo exists for one reason: agents are great at writing docs and terrible
+at governing them.
 
-Agents are very good at producing markdown. They are much worse at keeping a
-docs tree small, current, connected, and honest over time. Left alone, they
-generate the same failure pattern over and over:
+Agents are excellent at capturing context in markdown. Give them a blank
+directory and they will happily produce plans, design notes, migration docs,
+debug diaries, and architecture writeups all day.
+
+What they are bad at is the maintenance discipline humans tend to postpone but
+eventually do:
+
+- updating an old doc instead of writing a new one
+- deleting a stale doc instead of preserving it forever
+- linking a new doc into a navigable graph
+- keeping metadata structured and truthful
+- noticing when a review date has quietly become fiction
+
+Left alone, they generate the same failure pattern over and over:
 
 - stale docs that still sound authoritative
 - duplicate docs that disagree with each other
@@ -15,23 +27,32 @@ generate the same failure pattern over and over:
 - frontmatter that drifts from repo policy
 - review dates that become fiction instead of signal
 
-The result is worse than missing docs. You get a tree full of plausible lies.
+The result is worse than missing docs. You get a tree full of plausible,
+high-confidence lies.
 
 This repo is the enforcement layer for that problem.
 
-It makes docs behave more like code:
+It gives you simple deterministic tooling that forces agents to do the annoying
+but correct things:
 
-- policy lives in the repo
-- failures happen in lint and hooks
-- every live doc must justify its existence
-- review windows expire
-- orphan docs fail
-- existing remark plugins do the generic markdown work
-- we only implement the genuinely missing governance rules
+- all in-scope markdown docs are structured
+- all live docs are catalogued into a rooted graph
+- optional review windows expire deterministically
+- stale and orphaned docs fail in lint and hooks
+- repo policy lives in versioned config, not vibes
+- existing remark plugins handle markdown semantics
+- we only add the missing governance rules on top
+
+Some of this friction is annoying for humans.
+
+That is exactly why it is useful for agents.
+
+Agents need deterministic pressure to update, consolidate, link, or delete
+docs instead of endlessly adding more surface area.
 
 ---
 
-## The Problem With "Just Write More Docs"
+## The Problem With Agent-Written Docs
 
 A team asks an agent to document a system. It does exactly that.
 
@@ -46,12 +67,20 @@ All four are coherent. Two are half obsolete. One was never linked from
 anywhere. All still have confident prose.
 
 Six weeks later, another agent needs to change caching behavior. It reads the
-wrong doc first, updates code based on dead assumptions, and writes a fifth
-document trying to reconcile the mess.
+wrong doc first, updates code based on dead assumptions, and then writes a
+fifth document trying to reconcile the mess instead of fixing the existing
+ones.
 
 Tests may still pass. Reviews may still pass. The docs tree is what failed.
 
 That is the problem this repo solves.
+
+The core insight is simple:
+
+agents do not need help writing more markdown.
+
+They need guardrails that make them update existing docs, keep the docs tree
+navigable, and remove dead material.
 
 The standard we want is much harsher and much simpler:
 
@@ -64,6 +93,24 @@ The standard we want is much harsher and much simpler:
   current repo, not every thought anyone ever had
 
 `rm` is a governance feature.
+
+## Why This Works Well For Agents
+
+Humans often resist strict docs governance because it feels nitpicky.
+
+Agents are the opposite case. They respond well to deterministic rules:
+
+- if frontmatter is missing, fail
+- if the doc is orphaned, fail
+- if the review date expired, fail
+- if the doc should be historical or deleted, make that the shortest path to
+  green
+
+This repo is designed around that asymmetry.
+
+The job is not to politely remind contributors to clean things up later. The
+job is to make the correct docs behavior the path of least resistance for an
+agent operating in a loop of edit, lint, fix, repeat.
 
 ## Why Remark, Not Another Custom Parser
 
@@ -222,6 +269,9 @@ That generates:
 - `docs/INDEX.md`
 - package scripts for docs linting
 - `AGENTS.md` guidance for repo contributors
+
+After that, the repo has a deterministic docs contract that agents can operate
+against instead of a loose social expectation that they will "keep docs tidy."
 
 ## Recommended Config
 
