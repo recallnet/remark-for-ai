@@ -203,6 +203,12 @@ jobs:
           NPM_CONFIG_PROVENANCE: "false"
         run: pnpm changeset publish --registry=https://npm.pkg.github.com
 
+      - name: Push release tags
+        if: >-
+          steps.release_mode.outputs.should_publish == 'true' &&
+          steps.releases.outputs.release_count != '0'
+        run: git push origin --tags
+
       - name: Create GitHub releases
         if: >-
           steps.release_mode.outputs.should_publish == 'true' &&
