@@ -3,8 +3,34 @@
 Docs governance for coding-agent workflows, built on the remark ecosystem
 instead of hand-rolled markdown parsing.
 
-This repo exists for one reason: agents are great at writing docs and terrible
-at governing them.
+---
+
+## The Problem With Agent-Written Docs
+
+An agent touches a subsystem and decides to "document it better."
+
+It does exactly what you asked.
+
+It writes:
+
+- `docs/cache-strategy.md`
+- `docs/cache-strategy-v2.md`
+- `docs/new-cache-design.md`
+- `docs/redis-notes.md`
+
+All four are coherent. Two are already drifting. One was never linked from
+anywhere. All still sound authoritative.
+
+Six weeks later, another agent needs to change caching behavior. It reads the
+wrong doc first, updates code based on dead assumptions, and then writes a
+fifth document trying to reconcile the mess instead of fixing the existing
+ones.
+
+Tests may still pass. Reviews may still pass. The docs tree is what failed.
+
+**The problem is not that agents fail to write docs.**
+
+The problem is that they are much better at adding markdown than governing it.
 
 Agents are excellent at capturing context in markdown. Give them a blank
 directory and they will happily produce plans, design notes, migration docs,
@@ -30,6 +56,12 @@ Left alone, they generate the same failure pattern over and over:
 The result is worse than missing docs. You get a tree full of plausible,
 high-confidence lies.
 
+That is the problem this repo solves.
+
+The job is not to politely remind contributors to clean things up later. The
+job is to make the correct docs behavior the path of least resistance for an
+agent operating in a loop of edit, lint, fix, repeat.
+
 This repo is the enforcement layer for that problem.
 
 It gives you simple deterministic tooling that forces agents to do the annoying
@@ -49,38 +81,6 @@ That is exactly why it is useful for agents.
 
 Agents need deterministic pressure to update, consolidate, link, or delete
 docs instead of endlessly adding more surface area.
-
----
-
-## The Problem With Agent-Written Docs
-
-A team asks an agent to document a system. It does exactly that.
-
-It writes:
-
-- `docs/cache-strategy.md`
-- `docs/cache-strategy-v2.md`
-- `docs/new-cache-design.md`
-- `docs/redis-notes.md`
-
-All four are coherent. Two are half obsolete. One was never linked from
-anywhere. All still have confident prose.
-
-Six weeks later, another agent needs to change caching behavior. It reads the
-wrong doc first, updates code based on dead assumptions, and then writes a
-fifth document trying to reconcile the mess instead of fixing the existing
-ones.
-
-Tests may still pass. Reviews may still pass. The docs tree is what failed.
-
-That is the problem this repo solves.
-
-The core insight is simple:
-
-agents do not need help writing more markdown.
-
-They need guardrails that make them update existing docs, keep the docs tree
-navigable, and remove dead material.
 
 The standard we want is much harsher and much simpler:
 
@@ -107,10 +107,6 @@ Agents are the opposite case. They respond well to deterministic rules:
   green
 
 This repo is designed around that asymmetry.
-
-The job is not to politely remind contributors to clean things up later. The
-job is to make the correct docs behavior the path of least resistance for an
-agent operating in a loop of edit, lint, fix, repeat.
 
 ## Linked Context Is The Other Half
 
