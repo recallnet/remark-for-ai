@@ -1,6 +1,6 @@
 {
   "name": "@recallnet/docs-governance-preset",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Preset and bootstrap CLI for Recall docs governance in remark-based repos.",
   "license": "MIT",
   "type": "module",

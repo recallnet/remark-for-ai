@@ -1,5 +1,16 @@
 # @recallnet/docs-governance-preset
 
+## 0.2.5
+
+### Patch Changes
+
+- 24d3059: Republish the docs-governance packages and refresh plugin package docs for the
+  remark ecosystem index.
+- Updated dependencies [24d3059]
+  - @recallnet/docs-governance-policy@0.2.3
+  - @recallnet/remark-lint-docs-freshness@0.2.3
+  - @recallnet/remark-lint-docs-reachability@0.2.3
+
 ## 0.2.4
 
 ### Patch Changes
