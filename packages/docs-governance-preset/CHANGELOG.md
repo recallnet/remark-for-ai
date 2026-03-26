@@ -1,5 +1,11 @@
 # @recallnet/docs-governance-preset
 
+## 0.2.3
+
+### Patch Changes
+
+- Generate the default docs frontmatter schema as draft-07 so it is compatible with `remark-lint-frontmatter-schema`.
+
 ## 0.2.2
 
 ### Patch Changes

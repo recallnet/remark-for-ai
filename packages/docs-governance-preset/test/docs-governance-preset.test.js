@@ -30,6 +30,10 @@ test("initDocsGovernanceRepo writes default files and package scripts", () => {
   assert.match(readFileSync(join(repoDir, ".remarkrc.mjs"), "utf8"), /createDocsGovernanceConfig/);
   assert.match(readFileSync(join(repoDir, "docs", "INDEX.md"), "utf8"), /reviewed: 2026-03-25/);
   assert.match(
+    readFileSync(join(repoDir, "docs", "docs-frontmatter.schema.json"), "utf8"),
+    /"\$schema": "http:\/\/json-schema.org\/draft-07\/schema#"/
+  );
+  assert.match(
     readFileSync(join(repoDir, "package.json"), "utf8"),
     /"docs:lint": "recall-docs-governance lint"/
   );
