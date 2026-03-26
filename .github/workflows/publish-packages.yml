@@ -3,6 +3,7 @@ name: Publish Packages
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}
@@ -10,13 +11,15 @@ concurrency:
 
 jobs:
   release:
-    if: >-
-      github.repository == 'recallnet/remark-ai' &&
-      !contains(github.event.head_commit.message, 'chore: version packages [skip ci]')
+    # Trusted publishing binds npm packages to this exact workflow file. Keep
+    # the job enabled for version-commit reruns so partial publish failures can
+    # be resumed after Changesets has already consumed the pending files.
+    if: github.repository == 'recallnet/remark-ai'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       id-token: write
+      packages: write
       actions: read
       issues: write
 
@@ -47,59 +50,83 @@ jobs:
           output=$(pnpm changeset status 2>&1) && rc=0 || rc=$?
           if [ "$rc" -eq 0 ]; then
             echo "has_changesets=true" >> "$GITHUB_OUTPUT"
+            echo "Found pending changesets"
           elif echo "$output" | grep -qi "no.*changesets"; then
             echo "has_changesets=false" >> "$GITHUB_OUTPUT"
+            echo "No pending changesets"
           else
             echo "::error::changeset status failed unexpectedly:"
             echo "$output"
             exit 1
           fi
 
+      - name: Determine release mode
+        id: release_mode
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=backfill" >> "$GITHUB_OUTPUT"
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "Release mode: manual backfill"
+          elif [ "${{ steps.changesets.outputs.has_changesets }}" = "true" ]; then
+            echo "mode=fresh" >> "$GITHUB_OUTPUT"
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "Release mode: fresh changeset publish"
+          elif [ "$HEAD_COMMIT_MESSAGE" = "chore: version packages [skip ci]" ]; then
+            echo "mode=recovery" >> "$GITHUB_OUTPUT"
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "Release mode: recovery from version commit"
+          else
+            echo "mode=none" >> "$GITHUB_OUTPUT"
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "Release mode: nothing to publish"
+          fi
+
       - name: Build packages
-        if: steps.changesets.outputs.has_changesets == 'true'
+        if: steps.release_mode.outputs.should_publish == 'true'
         run: pnpm build
 
       - name: Version packages
-        if: steps.changesets.outputs.has_changesets == 'true'
+        if: steps.release_mode.outputs.mode == 'fresh'
         run: pnpm changeset version
 
-      - name: Commit and push version changes
-        if: steps.changesets.outputs.has_changesets == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "chore: version packages [skip ci]" || echo "No changes to commit"
-          git push
-
-      - name: Publish packages
-        if: steps.changesets.outputs.has_changesets == 'true'
-        env:
-          NPM_CONFIG_PROVENANCE: "true"
-        run: pnpm changeset publish
-
-      - name: Collect published package releases
-        if: steps.changesets.outputs.has_changesets == 'true'
+      - name: Prepare release manifest
+        if: steps.release_mode.outputs.should_publish == 'true'
         id: releases
+        env:
+          RELEASE_MODE: ${{ steps.release_mode.outputs.mode }}
         run: |
+          # @context decision: Publish and release steps run from an explicit
+          # package/version manifest instead of live Changesets state so reruns
+          # can resume after the version commit has already consumed pending
+          # changeset files.
+          #
+          # @context risk: New packages may not exist in the base revision.
+          # Treat a missing previous package.json as a new package so first
+          # release automation does not fail.
+          #
           # @context decision: GitHub Releases are package-scoped rather than
-          # repo-scoped because one Changesets publish can release multiple npm
-          # packages. A single repo release would hide which package/version
-          # pairs actually shipped.
+          # repo-scoped because one publish run can ship multiple npm packages.
           node <<'EOF'
           const fs = require('node:fs');
+          const path = require('node:path');
           const { execFileSync } = require('node:child_process');
 
-          const outputPath = process.env.RUNNER_TEMP + '/published-releases.json';
-          const diff = execFileSync(
-            'git',
-            ['diff', '--name-only', 'HEAD^', 'HEAD', '--', 'packages/*/package.json'],
-            { encoding: 'utf8' },
-          )
+          const mode = process.env.RELEASE_MODE;
+          const outputPath = path.join(process.env.RUNNER_TEMP, 'published-releases.json');
+          const fileArgs =
+            mode === 'backfill'
+              ? ['ls-files', 'packages/*/package.json']
+              : mode === 'fresh'
+              ? ['diff', '--name-only', '--', 'packages/*/package.json']
+              : ['diff', '--name-only', 'HEAD^', 'HEAD', '--', 'packages/*/package.json'];
+          const diff = execFileSync('git', fileArgs, { encoding: 'utf8' })
             .trim()
             .split('\n')
             .filter(Boolean);
 
+          const baseRef = mode === 'fresh' || mode === 'backfill' ? 'HEAD' : 'HEAD^';
           const releases = [];
           for (const file of diff) {
             const after = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -107,17 +134,18 @@ jobs:
               continue;
             }
 
-            let beforeVersion = null;
+            let before = null;
             try {
-              execFileSync('git', ['cat-file', '-e', `HEAD^:${file}`], { stdio: 'ignore' });
-              beforeVersion = JSON.parse(
-                execFileSync('git', ['show', `HEAD^:${file}`], { encoding: 'utf8' }),
-              ).version;
-            } catch {
-              beforeVersion = null;
+              before = JSON.parse(
+                execFileSync('git', ['show', `${baseRef}:${file}`], { encoding: 'utf8' }),
+              );
+            } catch (error) {
+              if (error.status !== 128) {
+                throw error;
+              }
             }
 
-            if (beforeVersion === after.version) {
+            if (before?.version === after.version) {
               continue;
             }
 
@@ -126,6 +154,7 @@ jobs:
               version: after.version,
               tag: `${after.name}@${after.version}`,
               npmUrl: `https://www.npmjs.com/package/${after.name}/v/${after.version}`,
+              ghRegistry: 'https://npm.pkg.github.com',
             });
           }
 
@@ -136,9 +165,45 @@ jobs:
           );
           EOF
 
+      - name: Commit and push version changes
+        if: steps.release_mode.outputs.mode == 'fresh'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: version packages [skip ci]" || echo "No changes to commit"
+          git push
+
+      - name: Publish packages to npmjs
+        if: >-
+          steps.release_mode.outputs.should_publish == 'true' &&
+          steps.releases.outputs.release_count != '0'
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+        run: pnpm changeset publish
+
+      - name: Configure GitHub Packages auth
+        if: >-
+          steps.release_mode.outputs.should_publish == 'true' &&
+          steps.releases.outputs.release_count != '0'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@recallnet"
+
+      - name: Publish packages to GitHub Packages
+        if: >-
+          steps.release_mode.outputs.should_publish == 'true' &&
+          steps.releases.outputs.release_count != '0'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "false"
+        run: pnpm changeset publish --registry=https://npm.pkg.github.com
+
       - name: Create GitHub releases
         if: >-
-          steps.changesets.outputs.has_changesets == 'true' &&
+          steps.release_mode.outputs.should_publish == 'true' &&
           steps.releases.outputs.release_count != '0'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -150,9 +215,10 @@ jobs:
           const releases = JSON.parse(fs.readFileSync(process.env.RELEASE_MANIFEST, 'utf8'));
           for (const release of releases) {
             const body = [
-              `${release.packageName} ${release.version} was published to npmjs from this workflow run.`,
+              `${release.packageName} ${release.version} was published to npmjs and mirrored to GitHub Packages from this workflow run.`,
               '',
               `npm: ${release.npmUrl}`,
+              `github-packages-registry: ${release.ghRegistry}`,
             ].join('\n');
             process.stdout.write([
               release.tag,
