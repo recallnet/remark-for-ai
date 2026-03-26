@@ -60,6 +60,23 @@ export function isMarkdownPath(pathValue) {
   return normalizePath(pathValue).toLowerCase().endsWith(".md");
 }
 
+const DEFAULT_EXCLUDED_DIRECTORIES = new Set([
+  ".cache",
+  ".git",
+  ".hatch",
+  ".hatch-worktrees",
+  ".hook-logs",
+  ".next",
+  ".tmp",
+  ".turbo",
+  "build",
+  "coverage",
+  "dist",
+  "node_modules",
+  "temp",
+  "tmp",
+]);
+
 // @context decision:tradeoff !high [verified:2026-03-25] — Path defaults use longest-match wins.
 // That preserves the old docs policy behavior without forcing every consumer to hand-order special cases.
 export function resolveDocsReviewPolicy(pathValue, policy) {
@@ -96,21 +113,98 @@ export function resolveReviewPolicyConfig(reviewPolicyId, policy) {
   return reviewPolicies.find((entry) => entry?.id === reviewPolicyId) ?? null;
 }
 
-// @context requirement !high [verified:2026-03-25] — Repo scans exclude `.git` and `node_modules`.
-// Governance checks need deterministic source files, not VCS internals or dependency trees.
-export function listRepositoryFiles(cwd) {
+function deriveStaticTraversalRoot(pattern) {
+  const normalizedPattern = normalizePath(pattern);
+  if (!normalizedPattern || normalizedPattern === "*") {
+    return null;
+  }
+
+  const wildcardIndex = normalizedPattern.search(/\*/);
+  if (wildcardIndex === 0) {
+    return null;
+  }
+
+  if (wildcardIndex === -1) {
+    return normalizedPattern;
+  }
+
+  return normalizedPattern.slice(0, wildcardIndex).replace(/\/+$/, "") || null;
+}
+
+// @context decision:tradeoff !high [verified:2026-03-26] — In-scope collection derives traversal roots from policy paths.
+// Whole-repo scans made docs hooks look runaway in repos with large runtime residue; derive the narrowest static prefix first and only fall back to repo-wide traversal for broad wildcard patterns.
+export function deriveTraversalRoots(policy) {
+  const inScopePaths = Array.isArray(policy?.in_scope_paths) ? policy.in_scope_paths : [];
+  if (inScopePaths.length === 0) {
+    return [];
+  }
+
+  const derivedRoots = [];
+  for (const pattern of inScopePaths) {
+    if (typeof pattern !== "string") {
+      continue;
+    }
+
+    const root = deriveStaticTraversalRoot(pattern);
+    if (root === null) {
+      return [""];
+    }
+
+    derivedRoots.push(root);
+  }
+
+  const uniqueRoots = [...new Set(derivedRoots)].sort(
+    (left, right) => left.length - right.length || left.localeCompare(right, "en")
+  );
+
+  return uniqueRoots.filter((candidate, index) => {
+    return !uniqueRoots.some((other, otherIndex) => {
+      if (index === otherIndex || other === candidate) {
+        return false;
+      }
+
+      return candidate.startsWith(`${other}/`);
+    });
+  });
+}
+
+// @context requirement !high [verified:2026-03-26] — Repo scans should start from in-scope roots and skip runtime residue.
+// Governance checks need deterministic source files, not VCS internals, dependency trees, or cache/log directories unrelated to policy scope.
+export function listRepositoryFiles(cwd, options = {}) {
   const files = [];
-  const queue = [""];
+  const requestedRoots =
+    Array.isArray(options.roots) && options.roots.length > 0 ? options.roots : [""];
+  const queue = [...new Set(requestedRoots.map((root) => normalizePath(root)))];
 
   while (queue.length > 0) {
     const relDir = queue.shift();
-    const absoluteDir = resolve(cwd, relDir);
-    const entries = readdirSync(absoluteDir, { withFileTypes: true })
+    const absolutePath = resolve(cwd, relDir);
+    let currentStat;
+    try {
+      currentStat = statSync(absolutePath);
+    } catch (error) {
+      if (error?.code === "ENOENT") {
+        continue;
+      }
+
+      throw error;
+    }
+
+    if (currentStat.isFile()) {
+      files.push(normalizePath(relDir));
+      continue;
+    }
+
+    if (!currentStat.isDirectory()) {
+      continue;
+    }
+
+    const entries = readdirSync(absolutePath, { withFileTypes: true })
       .map((entry) => entry.name)
       .sort((left, right) => left.localeCompare(right, "en"));
 
     for (const name of entries) {
-      if (name === ".git" || name === "node_modules") {
+      if (DEFAULT_EXCLUDED_DIRECTORIES.has(name)) {
         continue;
       }
 
@@ -145,8 +239,9 @@ export function collectInScopeMarkdownFiles(cwd, policy) {
   const frontmatterExcludeGlobs = Array.isArray(policy?.frontmatter_exclude_globs)
     ? policy.frontmatter_exclude_globs
     : [];
+  const traversalRoots = deriveTraversalRoots(policy);
 
-  return listRepositoryFiles(cwd)
+  return listRepositoryFiles(cwd, { roots: traversalRoots })
     .filter(isMarkdownPath)
     .filter((pathValue) => isDocsPathInScope(pathValue, policy))
     .filter(

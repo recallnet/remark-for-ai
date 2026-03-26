@@ -1,6 +1,6 @@
 {
   "name": "@recallnet/remark-lint-docs-reachability",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Remark plugin that flags markdown docs not reachable from policy roots.",
   "license": "MIT",
   "type": "module",

@@ -1,5 +1,12 @@
 # @recallnet/remark-lint-docs-freshness
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @recallnet/docs-governance-policy@0.2.2
+
 ## 0.2.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@recallnet/remark-lint-docs-freshness",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Remark plugin that checks docs reviewed dates against repo policy.",
   "license": "MIT",
   "type": "module",

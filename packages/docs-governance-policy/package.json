@@ -1,6 +1,6 @@
 {
   "name": "@recallnet/docs-governance-policy",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Shared policy loader and path resolution helpers for docs governance remark plugins.",
   "license": "MIT",
   "type": "module",

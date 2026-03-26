@@ -1,5 +1,13 @@
 # @recallnet/remark-lint-docs-reachability
 
+## 0.2.2
+
+### Patch Changes
+
+- Avoid whole-repo traversal for docs collection by deriving traversal roots from `in_scope_paths` and skipping common runtime/cache directories during descent.
+- Updated dependencies
+  - @recallnet/docs-governance-policy@0.2.2
+
 ## 0.2.1
 
 ### Patch Changes
