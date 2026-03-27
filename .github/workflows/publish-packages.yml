@@ -19,7 +19,6 @@ jobs:
     permissions:
       contents: write
       id-token: write
-      packages: write
       actions: read
       issues: write
 
@@ -156,7 +155,6 @@ jobs:
               version: after.version,
               tag: `${after.name}@${after.version}`,
               npmUrl: `https://www.npmjs.com/package/${after.name}/v/${after.version}`,
-              ghRegistry: 'https://npm.pkg.github.com',
             });
           }
 
@@ -184,25 +182,6 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
         run: pnpm changeset publish
 
-      - name: Configure GitHub Packages auth
-        if: >-
-          steps.release_mode.outputs.should_publish == 'true' &&
-          steps.releases.outputs.release_count != '0'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          registry-url: "https://npm.pkg.github.com"
-          scope: "@recallnet"
-
-      - name: Publish packages to GitHub Packages
-        if: >-
-          steps.release_mode.outputs.should_publish == 'true' &&
-          steps.releases.outputs.release_count != '0'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: "false"
-        run: pnpm changeset publish --registry=https://npm.pkg.github.com
-
       - name: Push release tags
         if: >-
           steps.release_mode.outputs.should_publish == 'true' &&
@@ -223,10 +202,9 @@ jobs:
           const releases = JSON.parse(fs.readFileSync(process.env.RELEASE_MANIFEST, 'utf8'));
           for (const release of releases) {
             const body = [
-              `${release.packageName} ${release.version} was published to npmjs and mirrored to GitHub Packages from this workflow run.`,
+              `${release.packageName} ${release.version} was published to npmjs from this workflow run.`,
               '',
               `npm: ${release.npmUrl}`,
-              `github-packages-registry: ${release.ghRegistry}`,
             ].join('\n');
             process.stdout.write([
               release.tag,
