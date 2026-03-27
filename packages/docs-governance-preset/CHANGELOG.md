@@ -1,5 +1,14 @@
 # @recallnet/docs-governance-preset
 
+## 0.2.8
+
+### Patch Changes
+
+- 4f2ef7c: Improve pre-commit integration by making `lint --changed` use staged
+  git changes by default, adding explicit file-list input support,
+  returning a distinct fatal exit code for tool crashes, and providing a
+  quiet summary mode that suppresses clean-file noise.
+
 ## 0.2.7
 
 ### Patch Changes
