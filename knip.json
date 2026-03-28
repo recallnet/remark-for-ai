@@ -7,12 +7,18 @@
     "packages/docs-governance-policy": {
       "project": ["src/**/*.js"]
     },
+    "packages/docs-governance-preset": {
+      "project": ["src/**/*.js", "test/**/*.js"]
+    },
     "packages/remark-lint-docs-freshness": {
       "project": ["src/**/*.js", "test/**/*.js"]
     },
     "packages/remark-lint-docs-reachability": {
       "project": ["src/**/*.js", "test/**/*.js"]
+    },
+    "packages/remark-lint-docs-taxonomy": {
+      "project": ["src/**/*.js", "test/**/*.js"]
     }
   },
-  "ignore": []
+  "ignore": [".remarkrc.mjs"]
 }
